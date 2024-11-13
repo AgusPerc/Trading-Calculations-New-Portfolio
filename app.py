@@ -6,9 +6,22 @@ import numpy as np
 # Set page config
 st.set_page_config(
     page_title="Trading Strategy Dashboard",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="centered",  # Changed to centered for better mobile view
+    initial_sidebar_state="collapsed"  # Default collapsed on mobile
 )
+
+# Custom CSS for mobile responsiveness
+st.markdown("""
+    <style>
+    .stPlotlyChart {
+        width: 100%;
+        min-width: 300px;
+    }
+    .st-emotion-cache-1r6slb0 {
+        width: 100%;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Sidebar controls
 st.sidebar.title("Trading Parameters")
@@ -54,33 +67,28 @@ remaining_portfolio = initial_portfolio - max_loss
 max_trades = initial_portfolio / risk_amount
 
 # Main dashboard area
-st.title("Trading Strategy Metrics Dashboard")
+st.title("Trading Strategy Metrics")
 st.markdown("---")
 
-# Key metrics
-col1, col2, col3 = st.columns(3)
+# Key metrics - Stacked vertically for mobile
+st.metric(
+    label="Initial Portfolio",
+    value=f"${initial_portfolio:,.2f} USD",
+    delta=None
+)
 
-with col1:
-    st.metric(
-        label="Initial Portfolio",
-        value=f"${initial_portfolio:,.2f} USD",
-        delta=None
-    )
+st.metric(
+    label="Risk Per Trade",
+    value=f"${risk_amount:,.2f} USD",
+    delta=f"{risk_percentage}%"
+)
 
-with col2:
-    st.metric(
-        label="Risk Per Trade",
-        value=f"${risk_amount:,.2f} USD",
-        delta=f"{risk_percentage}%"
-    )
-
-with col3:
-    st.metric(
-        label="Estimated Max Drawdown",
-        value=f"{max_dd}%",
-        delta=f"-${max_loss:,.2f} USD",
-        delta_color="inverse"
-    )
+st.metric(
+    label="Estimated Max Drawdown",
+    value=f"{max_dd}%",
+    delta=f"-${max_loss:,.2f} USD",
+    delta_color="inverse"
+)
 
 # Monthly return scenarios with gauge charts
 st.markdown("---")
@@ -101,38 +109,27 @@ def create_gauge(value, title):
             ],
         }
     ))
-    fig.update_layout(height=250)
+    fig.update_layout(height=200)  # Reduced height for mobile
     return fig
 
-col1, col2, col3 = st.columns(3)
+# Display gauges vertically for mobile
+st.plotly_chart(create_gauge(best_case, "Best Case"), use_container_width=True)
+st.plotly_chart(create_gauge(normal_case, "Normal Case"), use_container_width=True)
+st.plotly_chart(create_gauge(worst_case, "Worst Case"), use_container_width=True)
 
-with col1:
-    st.plotly_chart(
-        create_gauge(best_case, "Best Case Scenario"),
-        use_container_width=True
-    )
-
-with col2:
-    st.plotly_chart(
-        create_gauge(normal_case, "Normal Case Scenario"),
-        use_container_width=True
-    )
-
-with col3:
-    st.plotly_chart(
-        create_gauge(worst_case, "Worst Case Scenario"),
-        use_container_width=True
-    )
-
-# Portfolio projection
+# Portfolio projection with linear growth
 st.markdown("---")
 st.subheader("Portfolio Projection")
 
-# Create monthly projection for different scenarios
+# Create monthly projection for different scenarios (linear)
 months = range(1, 13)
-best_case_proj = [initial_portfolio * (1 + best_case/100)**m for m in months]
-normal_case_proj = [initial_portfolio * (1 + normal_case/100)**m for m in months]
-worst_case_proj = [initial_portfolio * (1 + worst_case/100)**m for m in months]
+monthly_best = initial_portfolio * (best_case/100)
+monthly_normal = initial_portfolio * (normal_case/100)
+monthly_worst = initial_portfolio * (worst_case/100)
+
+best_case_proj = [initial_portfolio + (monthly_best * m) for m in months]
+normal_case_proj = [initial_portfolio + (monthly_normal * m) for m in months]
+worst_case_proj = [initial_portfolio + (monthly_worst * m) for m in months]
 
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=list(months), y=best_case_proj, name="Best Case", line=dict(color="green")))
@@ -140,10 +137,11 @@ fig.add_trace(go.Scatter(x=list(months), y=normal_case_proj, name="Normal Case",
 fig.add_trace(go.Scatter(x=list(months), y=worst_case_proj, name="Worst Case", line=dict(color="red")))
 
 fig.update_layout(
-    title="12-Month Portfolio Projection",
+    title="12-Month Portfolio Projection (Linear)",
     xaxis_title="Months",
     yaxis_title="Portfolio Value (USD)",
-    hovermode="x unified"
+    hovermode="x unified",
+    height=400  # Adjusted height for mobile
 )
 st.plotly_chart(fig, use_container_width=True)
 
@@ -151,46 +149,19 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 st.subheader("Portfolio Risk Analysis")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.info(f"Maximum Potential Loss (Based on Max DD): ${max_loss:,.2f} USD")
-    st.metric(
-        label="Maximum Number of Simultaneous Trades",
-        value=f"{int(max_trades)}",
-        help="Based on risk per trade"
-    )
+st.info(f"Maximum Potential Loss (Based on Max DD): ${max_loss:,.2f} USD")
+st.metric(
+    label="Maximum Number of Simultaneous Trades",
+    value=f"{int(max_trades)}",
+    help="Based on risk per trade"
+)
     
-with col2:
-    st.success(f"Remaining Portfolio After Max DD: ${remaining_portfolio:,.2f} USD")
-    st.metric(
-        label="Average Trade Size",
-        value=f"${initial_portfolio/max_trades:,.2f} USD",
-        help="Suggested position size based on risk parameters"
-    )
-
-# Position Calculator
-st.markdown("---")
-st.subheader("Position Size Calculator")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    entry_price = st.number_input("Entry Price", min_value=0.01, value=100.0, step=0.01)
-    
-with col2:
-    stop_loss = st.number_input("Stop Loss Price", min_value=0.01, value=95.0, step=0.01)
-    
-with col3:
-    risk_per_trade = risk_amount
-    position_size = abs(risk_per_trade / (entry_price - stop_loss))
-    total_position_value = position_size * entry_price
-    
-    st.metric(
-        label="Position Size (Units)",
-        value=f"{position_size:.2f}",
-        delta=f"Total Value: ${total_position_value:,.2f}"
-    )
+st.success(f"Remaining Portfolio After Max DD: ${remaining_portfolio:,.2f} USD")
+st.metric(
+    label="Average Trade Size",
+    value=f"${initial_portfolio/max_trades:,.2f} USD",
+    help="Suggested position size based on risk parameters"
+)
 
 # Footer
 st.markdown("---")
@@ -200,7 +171,3 @@ st.markdown("""
     Past performance does not guarantee future results.</i>
 </div>
 """, unsafe_allow_html=True)
-
-# Cache the session state
-if 'portfolio_history' not in st.session_state:
-    st.session_state.portfolio_history = []
